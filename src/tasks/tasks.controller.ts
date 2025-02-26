@@ -1,58 +1,52 @@
-/* eslint-disable import/extensions */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import {
-  Body,
   Controller,
-  Delete,
   Get,
-  Param,
-  Patch,
   Post,
-  Request,
+  Body,
+  Patch,
+  Param,
+  Delete,
   UseGuards,
+  Req,
 } from '@nestjs/common';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-
-import { AuthGuard } from '../auth/auth.guard';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import { AuthGuard } from 'src/auth/auth.guard';
 
+@UseGuards(AuthGuard)
 @Controller('tasks')
 export class TasksController {
-  // eslint-disable-next-line no-useless-constructor, no-empty-function
   constructor(private readonly tasksService: TasksService) {}
 
-  @UseGuards(AuthGuard)
   @Post()
-  createTask(@Request() req, @Body() body: CreateTaskDto) {
-    return this.tasksService.createTask(req.user.userId, body);
+  create(@Req() req, @Body() body: CreateTaskDto) {
+    return this.tasksService.create(req.user.userId, body);
   }
 
-  @UseGuards(AuthGuard)
   @Get()
-  getTasks(@Request() req) {
-    return this.tasksService.getTasks(req.user.userId);
+  getTasks(@Req() req) {
+    return this.tasksService.findAll(req.user.userId);
   }
 
-  @UseGuards(AuthGuard)
   @Get(':id')
-  getTaskById(@Request() req, @Param('id') id: string) {
-    return this.tasksService.getTaskById(req.user.userId, id);
+  getTaskById(@Req() req, @Param('id') id: string) {
+    return this.tasksService.findOne(req.user.userId, +id);
   }
 
-  @UseGuards(AuthGuard)
   @Patch(':id')
-  updateTask(
-    @Request() req,
+  update(
+    @Req() req,
     @Param('id') id: string,
-    @Body() body: UpdateTaskDto,
+    @Body() updateTaskDto: UpdateTaskDto,
   ) {
-    return this.tasksService.updateTask(req.user.userId, id, body);
+    return this.tasksService.update(req.user.userId, +id, updateTaskDto);
   }
 
-  @UseGuards(AuthGuard)
   @Delete(':id')
-  deleteTask(@Request() req, @Param('id') id: string) {
-    return this.tasksService.deleteTask(req.user.userId, id);
+  remove(@Req() req, @Param('id') id: string) {
+    return this.tasksService.deleteTask(req.user.userId, +id);
   }
 }

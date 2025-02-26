@@ -1,108 +1,70 @@
-/* eslint-disable import/extensions */
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { Pool } from 'pg';
-import { DatabaseConfig } from '../config/database.config';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { TasksEntity } from './entities/task.entity';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class TasksService {
-  private pool: Pool;
+  constructor(
+    @InjectRepository(TasksEntity)
+    private tasksRepository: Repository<TasksEntity>,
+  ) {}
 
-  constructor() {
-    this.pool = new Pool(DatabaseConfig);
+  async create(userId: number, body: CreateTaskDto) {
+    const task = this.tasksRepository.create({ ...body, userId });
+
+    return await this.tasksRepository.save(task);
   }
 
-  async createTask(userId: number, body: CreateTaskDto) {
-    const { title, description, metadata } = body;
-    const query = `
-      INSERT INTO tasks (user_id, title, description, metadata)
-      VALUES ($1, $2, $3, $4) RETURNING *;
-    `;
-    const values = [userId, title, description, metadata || {}];
-    try {
-      const result = await this.pool.query(query, values);
-      return result.rows[0];
-    } catch (error) {
-      throw new InternalServerErrorException(error.message);
-    }
+  async findAll(userId: number) {
+    return this.tasksRepository.findBy({ userId });
   }
 
-  async getTasks(userId: number) {
-    const query = `
-      SELECT * FROM tasks WHERE user_id = $1;
-    `;
-    const values = [userId];
-    try {
-      const result = await this.pool.query(query, values);
-      return result.rows;
-    } catch (error) {
-      throw new InternalServerErrorException(error.message);
-    }
+  async findOne(userId: number, id: number) {
+    const task = await this.tasksRepository.findOneBy({ userId, id });
+
+    if (!task) throw new NotFoundException('Task not found.');
+
+    return task;
   }
 
-  async getTaskById(userId: number, taskId: string) {
-    const query = `
-      SELECT * FROM tasks WHERE user_id = $1 AND id = $2;
-    `;
-    const values = [userId, taskId];
-    try {
-      const result = await this.pool.query(query, values);
-      if (result.rows.length === 0) {
-        throw new InternalServerErrorException('Task not found');
-      }
-      return result.rows[0];
-    } catch (error) {
-      throw new InternalServerErrorException(error.message);
-    }
-  }
-
-  async updateTask(userId: number, taskId: string, body: UpdateTaskDto) {
+  async update(userId: number, id: number, body: UpdateTaskDto) {
     if (Object.keys(body).length === 0) {
-      throw new InternalServerErrorException('No fields provided for update');
+      throw new BadRequestException(
+        'At least one field must be provided for update.',
+      );
     }
 
-    const fields = [];
-    const values = [userId, taskId];
-    let index = 2;
+    const task = await this.tasksRepository.findOne({
+      where: { id, userId },
+    });
 
-    // eslint-disable-next-line guard-for-in, no-restricted-syntax
-    for (const key in body) {
-      // eslint-disable-next-line no-plusplus
-      fields.push(`${key} = $${++index}`);
-      values.push(body[key]);
+    if (!task) {
+      throw new NotFoundException('Task not found.');
     }
 
-    const query = `
-      UPDATE tasks
-      SET ${fields.join(', ')}
-      WHERE user_id = $1 AND id = $2
-      RETURNING *;
-    `;
-    try {
-      const result = await this.pool.query(query, values);
-      if (result.rows.length === 0) {
-        throw new InternalServerErrorException('Task not found or not updated');
-      }
-      return result.rows[0];
-    } catch (error) {
-      throw new InternalServerErrorException(error.message);
-    }
+    Object.assign(task, body);
+
+    return await this.tasksRepository.save(task);
   }
 
-  async deleteTask(userId: number, taskId: string) {
-    const query = `
-      DELETE FROM tasks WHERE user_id = $1 AND id = $2 RETURNING *;
-    `;
-    const values = [userId, taskId];
-    try {
-      const result = await this.pool.query(query, values);
-      if (result.rows.length === 0) {
-        throw new InternalServerErrorException('Task not found or not deleted');
-      }
-      return { message: 'Task deleted successfully' };
-    } catch (error) {
-      throw new InternalServerErrorException(error.message);
+  async deleteTask(userId: number, id: number) {
+    const task = await this.tasksRepository.findOne({
+      where: { id, userId },
+    });
+
+    if (!task) {
+      throw new NotFoundException('Task not found.');
     }
+
+    await this.tasksRepository.softDelete(id);
+
+    return { message: 'Task deleted successfully' };
   }
 }

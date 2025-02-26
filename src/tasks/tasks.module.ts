@@ -1,11 +1,12 @@
-/* eslint-disable import/extensions */
 import { Module } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { TasksController } from './tasks.controller';
-import { AuthModule } from '../auth/auth.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { TasksEntity } from './entities/task.entity';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [TypeOrmModule.forFeature([TasksEntity]), AuthModule],
   controllers: [TasksController],
   providers: [TasksService],
 })

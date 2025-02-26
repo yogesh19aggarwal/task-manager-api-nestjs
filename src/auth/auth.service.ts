@@ -1,44 +1,50 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { CreateAuthDto } from './dto/create-auth.dto';
 import * as bcrypt from 'bcrypt';
-import { Pool } from 'pg';
-// eslint-disable-next-line import/extensions
-import { DatabaseConfig } from '../config/database.config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { AuthEntity } from './entities/auth.entity';
+import { Repository } from 'typeorm';
+import { SignInAuthDto } from './dto/signin-auth.dto';
+import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class AuthService {
-  private pool: Pool;
+  constructor(
+    @InjectRepository(AuthEntity)
+    private authRepository: Repository<AuthEntity>,
+    private jwtService: JwtService,
+  ) {}
 
-  constructor(private jwtService: JwtService) {
-    this.pool = new Pool(DatabaseConfig);
+  async signup(dto: CreateAuthDto): Promise<AuthEntity> {
+    const userExist = await this.findUserByEmail(dto.email);
+
+    if (userExist) throw new BadRequestException('User exist with this email');
+
+    dto.password = await bcrypt.hash(dto.password, 10);
+    const user = this.authRepository.create(dto);
+    return await this.authRepository.save(user);
   }
 
-  async register(username: string, password: string) {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const query = `INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id, username`;
-    const result = await this.pool.query(query, [username, hashedPassword]);
-    return result.rows[0];
+  async signin(dto: SignInAuthDto) {
+    const userExist = await this.findUserByEmail(dto.email);
+
+    if (!userExist) throw new BadRequestException('Invalid creditials');
+
+    const passMatch = await bcrypt.compare(dto.password, userExist.password);
+
+    if (!passMatch) {
+      throw new BadRequestException('Invalid creditials');
+    }
+
+    return userExist;
   }
 
-  async validateUser(username: string, password: string) {
-    const query = `SELECT * FROM users WHERE username = $1`;
-    const result = await this.pool.query(query, [username]);
-    const user = result.rows[0];
-
-    if (!user)
-      throw new HttpException('Invalid Credentials', HttpStatus.UNAUTHORIZED);
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid)
-      throw new HttpException('Invalid Credentials', HttpStatus.UNAUTHORIZED);
-
-    return user;
+  accessToken(user: AuthEntity) {
+    const payload = { userId: user.id, email: user.email };
+    return { 'access-token': this.jwtService.sign(payload) };
   }
 
-  async login(user: any) {
-    const payload = { userId: user.id, username: user.username };
-    return {
-      access_token: this.jwtService.sign(payload),
-    };
+  async findUserByEmail(email: string) {
+    return await this.authRepository.findOneBy({ email });
   }
 }

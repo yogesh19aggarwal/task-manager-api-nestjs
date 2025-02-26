@@ -1,30 +1,10 @@
-/* eslint-disable import/extensions */
-import {
-  Module,
-  NestModule,
-  MiddlewareConsumer,
-  RequestMethod,
-} from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module';
 import { TasksModule } from './tasks/tasks.module';
-import { AppController } from './app.controller';
-import { ValidationMiddleware } from './common/middleware/validation.middleware';
-import { ValidationFunctionProvider } from './common/providers/validation.provider';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { dataSourceOptions } from 'db/data-source';
 
 @Module({
-  imports: [AuthModule, TasksModule],
-  controllers: [AppController],
-  providers: [ValidationFunctionProvider],
+  imports: [TypeOrmModule.forRoot(dataSourceOptions), AuthModule, TasksModule],
 })
-export class AppModule implements NestModule {
-  // eslint-disable-next-line class-methods-use-this
-  configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(ValidationMiddleware)
-      .exclude(
-        { path: 'tasks', method: RequestMethod.GET },
-        { path: 'tasks/:id', method: RequestMethod.GET },
-      )
-      .forRoutes('tasks');
-  }
-}
+export class AppModule {}
