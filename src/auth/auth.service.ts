@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Pool } from 'pg';
@@ -25,10 +25,12 @@ export class AuthService {
     const result = await this.pool.query(query, [username]);
     const user = result.rows[0];
 
-    if (!user) return null;
+    if (!user)
+      throw new HttpException('Invalid Credentials', HttpStatus.UNAUTHORIZED);
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) return null;
+    if (!isPasswordValid)
+      throw new HttpException('Invalid Credentials', HttpStatus.UNAUTHORIZED);
 
     return user;
   }
